@@ -1,3 +1,14 @@
+/*
+ * Copyright 2023 The Nodepp Project Authors. All Rights Reserved.
+ *
+ * Licensed under the MIT (the "License").  You may not use
+ * this file except in compliance with the License.  You can obtain a copy
+ * in the file LICENSE in the source distribution or at
+ * https://github.com/NodeppOficial/nodepp/blob/main/LICENSE
+ */
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
 #ifndef NODEPP_TYPE
 #define NODEPP_TYPE
 
@@ -28,6 +39,11 @@ namespace nodepp { namespace type {
 
     template <typename T, typename U> struct is_same : false_type {};
     template <typename T> struct is_same<T, T> : true_type {};
+    
+    /*─······································································─*/
+
+    template <typename T, typename U> struct is_different : true_type {};
+    template <typename T> struct is_different<T, T> : false_type {};
     
     /*─······································································─*/
 
@@ -186,7 +202,15 @@ namespace nodepp { namespace type {
 
     template<typename T> struct remove_reference<T&&> { using type = T; };
 
+    /*─······································································─*/
+
     template<typename T> typename remove_reference<T>::type&& move(T&& arg) { return static_cast<typename remove_reference<T>::type&&>( arg ); }
+
+    template<typename T> typename remove_reference<T>::type&  copy(T& arg) { return static_cast<typename remove_reference<T>::type&>( arg ); }
+
+    template<typename T> typename remove_reference<T>::type&& forward(T&& arg) { return move(arg); }
+
+    template<typename T> typename remove_reference<T>::type&  forward(T& arg) { return copy(arg); }
     
     /*─······································································─*/
 
@@ -224,6 +248,26 @@ namespace nodepp { namespace type {
 
     /*─······································································─*/
 
+    template <typename T> struct make_unsigned { using type = T; };
+
+    template <> struct make_unsigned<int>                { using type = unsigned int;       };
+    template <> struct make_unsigned<char>               { using type = unsigned char;      };
+    template <> struct make_unsigned<long>               { using type = unsigned long;      };
+    template <> struct make_unsigned<short>              { using type = unsigned short;     };
+    template <> struct make_unsigned<long long>          { using type = unsigned long long; };
+
+    /*─······································································─*/
+
+    template <typename T> struct is_unsigned : false_type {};
+
+    template <> struct is_unsigned<unsigned char>      : true_type {};
+    template <> struct is_unsigned<unsigned short>     : true_type {};
+    template <> struct is_unsigned<unsigned int>       : true_type {};
+    template <> struct is_unsigned<unsigned long>      : true_type {};
+    template <> struct is_unsigned<unsigned long long> : true_type {};
+
+    /*─······································································─*/
+
     template<typename T1, typename T2, typename... Ts> struct max {
         using larger_type = typename conditional< (sizeof(T1) > sizeof(T2)), T1, T2>::type;
         using type = typename max<larger_type, Ts...>::type;
@@ -253,6 +297,17 @@ namespace nodepp { namespace type {
     };
 
     /*─······································································─*/
+
+    template <typename T>
+    struct is_member_pointer : false_type {};
+
+    template <typename T, typename U>
+    struct is_member_pointer<T U::*> : true_type {};
+
+    template <typename T, typename U>
+    struct is_member_pointer<T (U::*)()> : true_type {};
+
+    /*─······································································─*/
     
     template< int V, typename... Ts > struct is_greater_than {
         static constexpr bool value = sizeof...(Ts) > V;
@@ -268,8 +323,8 @@ namespace nodepp { namespace type {
 
     /*─······································································─*/
 
-    template<typename T> struct is_virtually_constructible {
-        static constexpr bool value = __has_trivial_constructor(T);
+    template<typename T> struct is_trivially_constructible {
+        static constexpr bool value = __is_trivially_constructible(T);
     };
 
     template<typename T> struct is_trivially_destructible {
@@ -284,8 +339,12 @@ namespace nodepp { namespace type {
         static constexpr bool value = __is_trivially_copyable(T);
     };
 
-    template<typename T> struct is_trivially_assignable {
+    template<typename T> struct is_trivially_assigned {
         static constexpr bool value = __has_trivial_assign(T);
+    };
+
+    template<typename T, typename V> struct is_trivially_assignable {
+        static constexpr bool value = __is_trivially_assignable(T,V);
     };
 
     /*─······································································─*/
@@ -332,9 +391,9 @@ namespace nodepp { namespace type {
     template< typename T, ulong N > 
     struct list { T buffer[N];
 
-        const T  operator []( ulong i ) const noexcept { return       buffer[i]; }
-        explicit operator bool()        const noexcept { return (bool)buffer;    }
-        const T* operator &()           const noexcept { return       buffer;    }
+        const T  operator []( ulong i ) const noexcept { return       buffer[i%N]; }
+        explicit operator bool()        const noexcept { return (bool)buffer;      }
+        const T* operator &()           const noexcept { return       buffer;      }
 
         /*─······································································─*/
 
@@ -347,11 +406,6 @@ namespace nodepp { namespace type {
 
     };
 
-    /*─······································································─*/
-
-    template< class T, class V > T* cast( V* object ){ return ( T* )( object ); }
-    template< class T, class V > T  cast( V  object ){ return ( T  )( object ); }
-
 }}
 
 /*────────────────────────────────────────────────────────────────────────────*/
@@ -361,8 +415,15 @@ namespace nodepp { namespace type {
 /*────────────────────────────────────────────────────────────────────────────*/
 
 namespace nodepp { namespace type {
-    template<class T> ptr_t<T> bind( T* object ){ return new T( *object ); }
-    template<class T> ptr_t<T> bind( T  object ){ return new T(  object ); }
+
+    template< class T, class V > T* cast( ptr_t<V>& object ){ if( object==nullptr ){ return nullptr; } return ( T* )( object ); }
+    template< class T, class V > T* cast(       V*  object ){ if( object==nullptr ){ return nullptr; } return ( T* )( object ); }
+    template< class T, class V > T  cast(       V   object ){ return ( T )( object ); }
+
+    template<class T> ptr_t<T>      bind( ptr_t<T>& object ){ if( object==nullptr ){ return nullptr; } return    object.copy(); }
+    template<class T> ptr_t<T>      bind(       T*  object ){ if( object==nullptr ){ return nullptr; } return new T( *object ); }
+    template<class T> ptr_t<T>      bind(       T   object ){ return new T( object ); }
+
 }}
 
 /*────────────────────────────────────────────────────────────────────────────*/

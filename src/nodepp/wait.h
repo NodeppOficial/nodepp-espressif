@@ -9,59 +9,57 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-#ifndef NODEPP_EXCEPT
-#define NODEPP_EXCEPT
+#ifndef NODEPP_WAIT
+#define NODEPP_WAIT
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace nodepp { class except_t { 
-protected: 
+namespace nodepp { template< class T > class wait_t { 
+protected:
 
-    struct NODE { 
-        void *ev = nullptr;
-        string_t msg;
-    };  ptr_t<NODE> obj;
+    using NODE = function_t<bool,T>; ptr_t<queue_t<NODE>> obj;
 
-public:
-
-    virtual ~except_t() noexcept { 
-        if( obj->ev == nullptr ){ return; }
-   	    process::onSIGERR.off( obj->ev );
-    }
-
-    except_t() noexcept : obj( new NODE() ) {}
-
-    /*─······································································─*/
-
-    template< class T, class = typename type::enable_if<type::is_class<T>::value,T>::type >
-    except_t( const T& except_type ) noexcept : obj(new NODE()) {
-        obj->msg = except_type.what(); auto inp = type::bind( this ); 
-        obj->ev  = process::onSIGERR.once([=]( ... ){ inp->print(); });
-    }
-
-    /*─······································································─*/
-
-    template< class... T >
-    except_t( const T&... msg ) noexcept : obj(new NODE()) {
-        obj->msg = string::join( " ", msg... ); auto inp = type::bind( this ); 
-        obj->ev  = process::onSIGERR.once([=]( ... ){ inp->print(); });
-    }
-
-    /*─······································································─*/
-
-    except_t( const string_t& msg ) noexcept : obj(new NODE()) {
-        obj->msg = msg; auto inp = type::bind( this ); 
-        obj->ev  = process::onSIGERR.once([=]( ... ){ inp->print(); });
-    }
-
-    /*─······································································─*/
-
-    const char* what() const noexcept { return obj->msg.c_str(); }
-
-    operator char*() const noexcept { return (char*)what(); }
+public: wait_t() noexcept : obj( new queue_t<NODE>() ) {}
     
-    void print() const noexcept { console::error(obj->msg); } 
+    /*─······································································─*/
 
+    void* operator()( T val, function_t<void> func ) const noexcept { return on(val,func); }
+    
+    /*─······································································─*/
+
+    void off( void* address ) const noexcept { process::clear( address ); }
+
+    void* once( T val, function_t<void> func ) const noexcept {
+        if( obj->size() >= MAX_EVENTS ) { return nullptr; }
+        ptr_t<bool> out = new bool(1); obj->push([=]( T arg ){
+            if( *out != 0 && val == arg  ){ func(); }
+            *out = 0; return *out;
+        }); return &out;
+    }
+
+    void* on( T val, function_t<void> func ) const noexcept {
+        if( obj->size() >= MAX_EVENTS ) { return nullptr; }
+        ptr_t<bool> out = new bool(1); obj->push([=]( T arg ){
+            if( *out != 0 && val == arg  ){ func(); } 
+            return *out;
+        }); return &out;
+    }
+    
+    /*─······································································─*/
+
+    bool  empty() const noexcept { return obj->empty(); }
+    ulong  size() const noexcept { return obj->size(); }
+    void  clear() const noexcept { obj->clear(); }
+    
+    /*─······································································─*/
+
+    void emit( const T& arg ) const noexcept {
+        auto x = obj->first(); while( x != nullptr ){
+        auto y = x->next; 
+            if( !x->data( arg ) ){ obj->erase(x); }
+        x = y; }
+    }
+    
 };}
 
 /*────────────────────────────────────────────────────────────────────────────*/
