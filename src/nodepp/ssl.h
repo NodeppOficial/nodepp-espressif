@@ -303,7 +303,7 @@ public:
         return is_blocked( c=SSL_read( obj->ssl, bf, sx ) ) ? -2 : c;
     }
     
-    virtual int __write( char* bf, ulong sx ) const noexcept {
+    int __write( char* bf, ulong sx ) const noexcept {
         if( obj->ssl == nullptr ){ return -1; } int c = 0;
         if( obj->cnn == 0 ) while( _accept()==-2 ){ return -2; }
         return is_blocked( c=SSL_write( obj->ssl, bf, sx ) ) ? -2 : c;
@@ -311,7 +311,7 @@ public:
     
     /*─······································································─*/
 
-    void free() const noexcept {
+    virtual void free() const noexcept {
         if( obj->ssl != nullptr ){
         if( obj->cnn == 1 ){
             SSL_shutdown( obj->ssl );
