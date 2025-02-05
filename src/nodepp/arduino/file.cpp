@@ -90,7 +90,7 @@ public: file_t() noexcept {}
 
     /*─······································································─*/
 
-    bool    is_closed() const noexcept { return obj->state <  0 ||  is_feof() || feof(obj->fd); }
+    bool    is_closed() const noexcept { return obj->state <  0 ||  is_feof() || obj->fd == -1; }
     bool      is_feof() const noexcept { return obj->feof  <= 0 && obj->feof  != -2; }
     bool is_available() const noexcept { return obj->state >= 0 && !is_closed(); }
 
@@ -203,7 +203,7 @@ public: file_t() noexcept {}
         if( is_closed() ){ return -1; } if( sx==0 ){ return 0; }
         obj->feof = ::read( obj->fd, bf, sx );
         obj->feof = is_blocked(obj->feof) ?-2 : obj->feof;
-        if( obj->feof <= 0 || feof( obj->fd ) ){ close(); }
+        if( obj->feof <= 0 && obj->feof != -2 ){ close(); }
         return obj->feof;
     }
 
@@ -211,7 +211,7 @@ public: file_t() noexcept {}
         if( is_closed() ){ return -1; } if( sx==0 ){ return 0; }
         obj->feof = ::write( obj->fd, bf, sx );
         obj->feof = is_blocked(obj->feof) ?-2 : obj->feof;
-        if( obj->feof <= 0 || feof( obj->fd ) ){ close(); }
+        if( obj->feof <= 0 && obj->feof != -2 ){ close(); }
         return obj->feof;
     }
 
